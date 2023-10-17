@@ -1,0 +1,158 @@
+---
+title: "Data Cleaning"
+author: "Karine Almeida"
+date: "2023-07-19"
+output: pdf_document
+---
+
+# Business Understanding  
+  
+A fictitious car buying and selling company is having difficulties reselling 
+used cars in its catalogue. With the aim of pricing your catalog more competi-
+tively and thus recovering the poor performance in this sector, I will analyze
+the data to answer business questions and create a predictive model that prices 
+the customer's cars so that they are as close to market values. 
+**In this notebook you will have access to a descriptive analysis of the data,**
+**insights and answers to some business questions.**    
+   
+# Data cleaning 
+  
+## Installing packages   
+```{r message=FALSE, warning=FALSE}
+pacotes <- c('tidyverse','knitr','kableExtra', 'ggplot2', "paletteer",
+             "scales","DT", "kableExtra", 'gridExtra', 'xlsx')
+
+options(rgl.debug = TRUE)
+
+if(sum(as.numeric(!pacotes %in% installed.packages())) != 0){
+  instalador <- pacotes[!pacotes %in% installed.packages()]
+  for(i in 1:length(instalador)) {
+    install.packages(instalador, dependencies = T)
+    break()}
+  sapply(pacotes, require, character = T) 
+} else {
+  sapply(pacotes, require, character = T) 
+}
+
+```
+  
+## Viewing the database  
+```{r echo=TRUE, warning=FALSE}
+cars_train <- read_delim("../datasets/cars_train.txt", show_col_types = FALSE)
+glimpse(cars_train)
+```
+
+## Identifying and removing missing data  
+```{r}
+sapply(cars_train, function(x) sum(is.na(x)))
+
+```
+## veiculo_único_dono: I will consider that the missing values represent "mais de um dono" (more than one owner), so I will replace it with that.
+```{r}
+cars_train$veiculo_único_dono <- 
+  cars_train$veiculo_único_dono %>% replace_na("mais de um dono")
+```
+
+## veiculo_licenciado: Null values were considered as "não licenciado"
+```{r}
+cars_train$veiculo_licenciado <- 
+  cars_train$veiculo_licenciado %>% replace_na("não licenciado")
+```
+
+## dono_aceita_troca: missing values replaced by "não aceita troca"
+```{r}
+cars_train$dono_aceita_troca <- 
+  cars_train$dono_aceita_troca %>% replace_na("não aceita troca")
+```
+
+## ipva_pago: missing values replaced by "IPVA não pago"
+```{r}
+cars_train$ipva_pago <- 
+  cars_train$ipva_pago %>% replace_na("ipva não pago")
+```
+
+```{r}
+cars_train$num_fotos <- 
+  cars_train$num_fotos %>% replace_na(0)
+```
+
+
+The missing items identified in the other variables, in addition to being very 
+numerous, are redundant because even if corrected they would provide information
+without variation. These variables will be deleted.
+
+## Removing variables with redundant values, excess missing values and many categories
+```{r}
+cars_train <- subset(cars_train, 
+                     select = -c(id,veiculo_alienado,revisoes_concessionaria,
+                     garantia_de_fábrica,revisoes_dentro_agenda,
+                     elegivel_revisao))
+```
+
+## Identifying outliers
+```{r}
+boxplot(cars_train$preco, las=2, xlab="preco") 
+boxplot(cars_train$hodometro,las=2, xlab="hodometro")
+```
+ 
+## Quartile function
+```{r}
+quartil <- function(column){
+  
+  q1 <- quantile(column, 0.25, na.rm = TRUE) #1º quartil
+  q3 <- quantile(column, 0.75, na.rm = TRUE) #3º quartil
+  iq <- q3 - q1 #interquartil
+  lim_sup <- q3 + 1.5*iq #limite superior
+  return(lim_sup)
+}
+```
+
+## Calculating outliers across the top quartile  
+```{r}
+max_preco <- quartil(cars_train$preco)
+max_hodo <- quartil(cars_train$hodometro)
+print(paste("Preço:",max_preco, "Hodometro:", max_hodo))
+```
+## Now we will discard the lines where price and odometer are above the upper limit 
+```{r}
+for (i in seq_along(cars_train$preco)){
+  if (cars_train$preco[i] > 295085.69){
+    cars_train$preco[i] <- mean(cars_train$preco)
+  } 
+}
+
+for (i in seq_along(cars_train$hodometro)){
+  if (cars_train$hodometro[i] > 158264){
+    cars_train$hodometro[i] <- mean(cars_train$hodometro)
+  } 
+}
+```
+  
+## Visualize the distribution of variables, now without the outliers
+```{r}
+boxplot(cars_train$preco, las=2, xlab="preco") 
+boxplot(cars_train$hodometro,las=2, xlab="hodometro")
+```
+
+## Transforming variables into factors
+```{r}
+cars_train[,c("marca", "cor", "cambio", "tipo", "ano_de_fabricacao",
+              "ano_modelo", "dono_aceita_troca", "veiculo_único_dono",
+              "ipva_pago", "veiculo_licenciado","blindado",
+              "tipo_vendedor","estado_vendedor", 
+              "anunciante")]= 
+  lapply(cars_train[,c("marca", "cor", "cambio", "tipo", "ano_de_fabricacao",
+              "ano_modelo", "dono_aceita_troca", "veiculo_único_dono",
+              "ipva_pago", "veiculo_licenciado","blindado",
+              "tipo_vendedor","estado_vendedor", 
+              "anunciante")], as.factor)
+
+summary(cars_train)
+```
+## Saving clean dataset
+```{r}
+write.csv(cars_train, "cars_train_clean.csv", row.names = FALSE)
+```
+
+
+
