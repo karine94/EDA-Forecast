@@ -17,13 +17,12 @@ In this project I performed data cleaning and transformation, descriptive analys
 
 ## Installing and running the project
 
--  To install R [clique aqui](https://cran.rstudio.com). Choose the download according to your operating system.
--  To install RStudio [clique aqui](https://posit.co/download/rstudio-desktop/).
+-  To install R [click here](https://cran.rstudio.com). Choose the download according to your operating system.
+-  To install RStudio [click here](https://posit.co/download/rstudio-desktop/).
 
 ## Files
 
-- Use the `project.Rproj` file to open the project in RStudio.
--  `datasets` is the folder that contains the datasets used in this project.
+-  `data` is the folder that contains the datasets used in this project.
 -  `notebooks` contains the scripts in R. When downloading, you can view the html doc directly in your browser.
 -  `PDF` contains the scripts saved in pdf.
 
