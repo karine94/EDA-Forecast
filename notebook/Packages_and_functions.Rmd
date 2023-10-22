@@ -1,0 +1,103 @@
+---
+title: "Packages and functions"
+author: "Karine Almeida"
+output: html_document
+date: "2023-10-20"
+---
+Instalando e carregando pacotes  
+```{r message=FALSE, warning=FALSE, include=FALSE}
+pacotes <- c('tidyverse','rpart','rpart.plot','gtools','Rmisc','caret',
+             'neuralnet','shapr','gamlss','gamlss.add','mlbench','reshape',
+             "plotly","tidyverse","ggrepel","fastDummies","knitr","kableExtra",
+             "splines","reshape2","PerformanceAnalytics","correlation","see",
+             "ggraph", "car", "olsrr", "jtools", "ggside", "ggplot2", 
+             "tidyquant", "Metrics", "randomForest")
+
+options(rgl.debug = TRUE)
+
+if(sum(as.numeric(!pacotes %in% installed.packages())) != 0){
+  instalador <- pacotes[!pacotes %in% installed.packages()]
+  for(i in 1:length(instalador)) {
+    install.packages(instalador, dependencies = T)
+    break()}
+  sapply(pacotes, require, character = T) 
+} else {
+  sapply(pacotes, require, character = T) 
+}
+```
+
+## Functions that will be used throughout this notebook
+```{r}
+metricas2 <- function(p_var, y_var){
+  SQE <- sum((y_var - p_var)**2)
+  
+  # Cálculo do SSE (Sum of Squares Total)
+  SST <- sum((y_var - mean(y_var))**2)
+  
+  # Cálculo do R-quadrado
+  R_squared <- 1 - SQE/SST
+  
+  # RMSE
+  RMSE <- sqrt(mean((y_var - p_var)^2))
+  
+  # Imprimindo os resultados
+  cat("SQE: ", SQE, "QME : ", SQE/length(y_var), "\n")
+  cat("SST: ", SST, "QMT: ", SST/length(y_var), "\n")
+  cat("RMSE:", RMSE, "\n")
+  cat("R-quadrado: ", R_squared, "\n")
+  
+}
+```
+
+# Análise gráfica
+
+
+Função para fazer plot x vs y com cor em z
+```{r}
+scatterplot_color <- function(data, x_var, y_var, r_var) {
+  ggplot(data) +
+    geom_point(aes(x = !!sym(x_var), y = !!sym(y_var), color = !!sym(r_var))) +
+    theme(legend.position="bottom") +
+    ggtitle("Scatterplot") +
+    scale_color_viridis_c()
+}
+
+```
+
+Valores esperados e observados
+```{r}
+
+grafico_x_obs_esp <- function(df_in, x_var, y_var, p_var, r_var){
+  arvore_vs_E <- ggplot(df_in) + 
+    geom_point(alpha=.7, size=.5, aes(!!sym(x_var),!!sym(y_var), color=!!sym(r_var))) +
+    scale_color_viridis_c() +
+    geom_path(aes(!!sym(x_var),!!sym(p_var))) + #Ploting
+    theme_bw() +
+    theme(legend.position="bottom") +
+    # guides(colour = guide_legend(label.position = "bottom")) +
+    labs(title="Valores observados vs esperados")
+  arvore_vs_E
+}
+```
+
+Consolidar 2 gráficos em uma figura
+```{r}
+analise_grafica <- function(df_in, x_var, y_var, p_var, r_var){
+  # Gráfico 1: x vs y colorido por resíduos + valores esperados
+  gr1 <- grafico_x_obs_esp(df_in, x_var, y_var, p_var, r_var)
+  # Gráfico2 de x vs resíduos colorido por resíduos
+  gr2 <- scatterplot_color(df, x_var, r_var, r_var)
+  # gr2
+  # painel com os dois gráficos
+  ggpubr::ggarrange(gr1, gr2,
+                    # labels = c("A", "B"),
+                    ncol = 2, nrow = 1)
+}
+# painel com os dois gráficos
+analise_grafica(df, "x", "y", "p", "r")
+
+```
+
+
+
+

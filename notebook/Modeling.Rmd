@@ -11,72 +11,34 @@ output: html_document
 - Since we are dealing with a continuous variable, we will apply regression, which is part of supervised machine learning models.  
 - We will apply 4 models and, through evaluation metrics, identify the one that performs best. This model will be used to obtain the price prediction from the *(cars_test)* dataset.  
 
-Instalando e carregando pacotes  
-```{r message=FALSE, warning=FALSE, include=FALSE}
-pacotes <- c('tidyverse','rpart','rpart.plot','gtools','Rmisc','caret',
-             'neuralnet','shapr','gamlss','gamlss.add','mlbench','reshape',
-             "plotly","tidyverse","ggrepel","fastDummies","knitr","kableExtra",
-             "splines","reshape2","PerformanceAnalytics","correlation","see",
-             "ggraph", "car", "olsrr", "jtools", "ggside", "ggplot2", 
-             "tidyquant", "Metrics", "randomForest")
 
-options(rgl.debug = TRUE)
-
-if(sum(as.numeric(!pacotes %in% installed.packages())) != 0){
-  instalador <- pacotes[!pacotes %in% installed.packages()]
-  for(i in 1:length(instalador)) {
-    install.packages(instalador, dependencies = T)
-    break()}
-  sapply(pacotes, require, character = T) 
-} else {
-  sapply(pacotes, require, character = T) 
-}
-```
-
-## Functions that will be used throughout this notebook
-```{r}
-metricas2 <- function(p_var, y_var){
-  SQE <- sum((y_var - p_var)**2)
-  
-  # Cálculo do SSE (Sum of Squares Total)
-  SST <- sum((y_var - mean(y_var))**2)
-  
-  # Cálculo do R-quadrado
-  R_squared <- 1 - SQE/SST
-  
-  # RMSE
-  RMSE <- sqrt(mean((y_var - p_var)^2))
-  
-  # Imprimindo os resultados
-  cat("SQE: ", SQE, "QME : ", SQE/length(y_var), "\n")
-  cat("SST: ", SST, "QMT: ", SST/length(y_var), "\n")
-  cat("RMSE:", RMSE, "\n")
-  cat("R-quadrado: ", R_squared, "\n")
-  
-}
-```
 ## Viewing the database   
 ```{r echo=TRUE, warning=FALSE}
-cars_train <- read_csv("cars_train_clean.csv")
+cars_train <- read_csv("../data/cars_train_clean1.csv", show_col_types = FALSE)
 glimpse(cars_train)
 ``` 
+Detect near zero covariates  
+```{r}
+nearZeroVar(cars_train, saveMetrics = T)
+```
 
-Removing variables with excess categories
+Removing variables near zero covariates and variables with excess categories (high computational power)  
 ```{r}
 cars_train <- subset(cars_train, 
-                     select = -c(cidade_vendedor, modelo, versao))
+                     select = -c(num_portas, blindado, cidade_vendedor, modelo, versao))
+
 ```
 
 Transforming variables into factors
 ```{r}
 cars_train[,c("marca", "cor", "cambio", "tipo", "ano_de_fabricacao",
-              "ano_modelo", "dono_aceita_troca", "veiculo_único_dono",
-              "ipva_pago", "veiculo_licenciado","blindado",
+              "ano_modelo","veiculo_único_dono",
+              "ipva_pago", "veiculo_licenciado",
               "tipo_vendedor","estado_vendedor", 
               "anunciante")]= 
   lapply(cars_train[,c("marca", "cor", "cambio", "tipo", "ano_de_fabricacao",
-              "ano_modelo", "dono_aceita_troca", "veiculo_único_dono",
-              "ipva_pago", "veiculo_licenciado","blindado",
+              "ano_modelo","veiculo_único_dono",
+              "ipva_pago", "veiculo_licenciado",
               "tipo_vendedor","estado_vendedor", 
               "anunciante")], as.factor)
 
@@ -89,10 +51,10 @@ cars_train_dummy <- dummy_columns(.data = cars_train,
                              select_columns = 
                                c("marca","cor","cambio",
                                  "tipo","ano_de_fabricacao",
-                                 "ano_modelo","dono_aceita_troca"
-                                 , "veiculo_único_dono",
+                                 "ano_modelo",
+                                 "veiculo_único_dono",
                                  "ipva_pago", "veiculo_licenciado",
-                                 "blindado","tipo_vendedor"
+                                 "tipo_vendedor"
                                  ,"estado_vendedor","anunciante"),
                              remove_selected_columns = T,
                              remove_most_frequent_dummy = T)
@@ -134,80 +96,131 @@ predito_bc <- predict(modelo_cars_train_bc, cars_train_dummy)
 metricas2(predito_bc, cars_train_dummy$bcpreco)
 ```
   
-# Ensemble Models
-Separating basis between training and testing
-```{r}
-set.seed(123)
- 
-linhas <- sample(1:length(cars_train$marca), length(cars_train$marca)*0.7)
+# Tree regression
 
-treino = cars_train[linhas,] #criando objeto base treino com 70% dos dados
-teste = cars_train[-linhas,] #criando objeto base treino com 30% dos dados
+```{r include=FALSE}
+cars_train2 <- read_csv("../data/cars_train_clean.csv", show_col_types = FALSE)
+
+#Removing variables with excess categories
+cars_train2 <- subset(cars_train2, 
+                     select = -c(cidade_vendedor, modelo, versao))
 ```
-  
-Decision tree
+
+Train tree
 ```{r}
-arvore <- rpart(preco ~ .,
-                 data= treino,
-                 xval=10,
+tree <- rpart(preco ~ .,
+                 data= cars_train2,
+                 xval=5,
                  control = rpart.control(cp = 0, 
                                          minsplit = 2,
                                          maxdepth = 30))
 ```
-  
-Let's find the optimal hyperparameter for CP:
+
+Save the forecast
 ```{r}
-tab_cp <- rpart::printcp(arvore)
+cars_train2['predict'] = predict(tree, cars_train2)
+
+# investigate the forecast
+cars_train2$predict %>% tail
 ```
-  
+
+creating residue variable
+```{r}
+cars_train2['residue'] = cars_train2$preco - cars_train2$predict
+
+#Investigate residue
+
+cars_train2$residue %>% tail
+```
+
+Evaluate the tree
+```{r}
+metricas2(cars_train2$predict, cars_train2$preco)
+```
+```{r}
+scatterplot_color(cars_train2, "predict", "preco", "residue")
+```
+```{r}
+#analise_grafica(cars_train2, "anunciante", "preco", "predict", "residue")
+```
+
+Observe the complexity of tree paths (cp)
+```{r}
+tab_cp <- rpart::printcp(tree)
+```
+
 Here is a graphical visualization of CP vs error in cross validation
 ```{r}
-rpart::plotcp(arvore)
+rpart::plotcp(tree)
 ```
-  
-identifying the best CP in cross-validation   
+Identifying the best CP in cross-validation   
 ```{r}
+tab_cp[which.min(tab_cp[,'xerror']),]
 cp_min <- tab_cp[which.min(tab_cp[,'xerror']),'CP']
 cp_min
 ```
-   
 Tuning tree  
 ```{r}
-arvore_tunada <- rpart::rpart(preco ~ .,
-                              data=treino,
+tree_tune <- rpart::rpart(preco ~ .,
+                              data=cars_train2,
                               xval=0,
                               control = rpart.control(cp = cp_min, 
-                                                      minsplit = 2,
                                                       maxdepth = 30))
 ```
-  
-Evaluating tree  
-```{r}
-predito_treino <- predict(arvore_tunada, treino)
-predito_teste <- predict(arvore_tunada, teste)
 
-metricas2(predito_treino, treino$preco)
-metricas2(predito_teste, teste$preco)
+Predicted values
+```{r}
+cars_train2['p_tune'] = predict(tree_tune, cars_train2)
+#cars_train2$p_tune %>% tail # investigar a previsão
+cars_train2['r_tune'] = cars_train2$preco - cars_train2$p_tune
 ```
-  
-Random Forest  
+
+Evaluate the tuned tree
+```{r}
+metricas2(cars_train2$p_tune, cars_train2$preco)
+```
+
+Graphic analysis
+```{r}
+scatterplot_color(cars_train2, "p_tune", "preco", "r_tune")
+#analise_grafica(cars_train2, "hodometro", "preco", "p_tune", "r_tune")
+```
+## Random Forest  
+
+Dataset separation  
+```{r}
+set.seed(123)
+separation <- sample(c("train", "test"),
+                     size = nrow(cars_train),
+                     replace = TRUE,
+                     prob = c(0.8, 0.2))
+```
+
+Generating training and testing base
+```{r}
+train <- cars_train[separation == "train",]
+nrow(train)
+test <- cars_train[separation == "test",]
+nrow(test)
+```
+
 ```{r}
 set.seed(123)
 rf <- randomForest::randomForest(
   preco ~ .,
-  data = treino,
-  ntree = 80
+  data = train,
+  ntree = 200
 )
 ```
   
 Evaluating tree
 ```{r}
-pRF_treino <- predict(rf, treino)
-pRF_teste  <- predict(rf, teste)
+pRF_train <- predict(rf, train)
+pRF_test  <- predict(rf, test)
 
-metricas2(pRF_treino, treino$preco)
-metricas2(pRF_teste, teste$preco)
+metricas2(pRF_train, train$preco)
+metricas2(pRF_test, test$preco)
 ```
   
 **The selected model will be Random forest, as it presented the best RMSE and R2 evaluation metrics.** 
-
+ 

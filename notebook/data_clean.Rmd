@@ -38,7 +38,7 @@ if(sum(as.numeric(!pacotes %in% installed.packages())) != 0){
   
 ## Viewing the database  
 ```{r echo=TRUE, warning=FALSE}
-cars_train <- read_delim("../datasets/cars_train.txt", show_col_types = FALSE)
+cars_train <- read_delim("../data/cars_train.txt", show_col_types = FALSE)
 glimpse(cars_train)
 ```
 
@@ -87,6 +87,56 @@ cars_train <- subset(cars_train,
                      select = -c(id,veiculo_alienado,revisoes_concessionaria,
                      garantia_de_fábrica,revisoes_dentro_agenda,
                      elegivel_revisao))
+```
+
+## Check whether the levels of the categorical variables are balanced
+```{r}
+#The brands FERRARI, IVECO, JAC, BRM and EFFA have very few observations, which therefore does not have enough variability to contribute to the model. Therefore, they will be excluded.
+
+#marca
+cars_train <- subset(cars_train, marca != "FERRARI")
+cars_train <- subset(cars_train, marca != "IVECO")
+cars_train <- subset(cars_train, marca != "JAC")
+cars_train <- subset(cars_train, marca != "BRM")
+cars_train <- subset(cars_train, marca != "EFFA")
+
+#ano_de_fabricação
+cars_train <- subset(cars_train, ano_de_fabricacao != "1985")
+cars_train <- subset(cars_train, ano_de_fabricacao != "1988")
+cars_train <- subset(cars_train, ano_de_fabricacao != "1990")
+
+#ano_modelo
+cars_train <- subset(cars_train, ano_modelo != "1997")
+cars_train <- subset(cars_train, ano_modelo != "2006")
+cars_train <- subset(cars_train, ano_modelo != "2008")
+cars_train <- subset(cars_train, ano_modelo != "2010")
+
+#num_portas
+cars_train <- subset(cars_train, num_portas != 3)
+
+#cor
+cars_train <- subset(cars_train, cor != "Dourado")
+cars_train <- subset(cars_train, cor != "Verde")
+cars_train <- subset(cars_train, cor != "Vermelho")
+
+#estado_vendedor
+cars_train <- subset(cars_train, estado_vendedor != "Roraima (RR)")
+cars_train <- subset(cars_train, estado_vendedor != "Maranhão (MA)")
+cars_train <- subset(cars_train, estado_vendedor != "Rondônia (RO)")
+cars_train <- subset(cars_train, estado_vendedor != "Piauí (PI)")
+
+#anunciante
+cars_train$anunciante[cars_train$anunciante == "Acessórios e serviços para autos"] <- "Concessionária"
+cars_train$anunciante[cars_train$anunciante == "Loja"] <- "Concessionária"
+
+
+#num_portas, blindado, entrega_delivery, troca, dono_aceita_troca: These are variables that present a suspicious distribution of the data. Before doing the modeling I will investigate which of them should or should not be excluded.
+pie(table(cars_train$num_portas), main = "tipo", col= c("#003154","#dd4a37"))
+pie(table(cars_train$blindado), main = "tipo", col= c("#003154","#dd4a37"))
+pie(table(cars_train$entrega_delivery), main = "tipo", col= c("#003154","#dd4a37"))
+pie(table(cars_train$troca), main = "tipo", col= c("#003154","#dd4a37"))
+pie(table(cars_train$dono_aceita_troca), main = "tipo", col= c("#003154","#dd4a37"))
+
 ```
 
 ## Identifying outliers
@@ -151,7 +201,7 @@ summary(cars_train)
 ```
 ## Saving clean dataset
 ```{r}
-write.csv(cars_train, "cars_train_clean.csv", row.names = FALSE)
+write.csv(cars_train, "../data/cars_train_clean1.csv", row.names = FALSE)
 ```
 
 
