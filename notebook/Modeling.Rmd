@@ -29,6 +29,24 @@ cars_train <- subset(cars_train,
 
 ```
 
+Dataset separation  
+```{r}
+set.seed(123)
+separation <- sample(c("train", "test"),
+                     size = nrow(cars_train),
+                     replace = TRUE,
+                     prob = c(0.8, 0.2))
+```
+
+Generating training and testing base
+```{r}
+train <- cars_train[separation == "train",]
+nrow(train)
+test <- cars_train[separation == "test",]
+nrow(test)
+```
+
+
 Transforming variables into factors
 ```{r}
 cars_train[,c("marca", "cor", "cambio", "tipo", "ano_de_fabricacao",
@@ -96,52 +114,66 @@ predito_bc <- predict(modelo_cars_train_bc, cars_train_dummy)
 metricas2(predito_bc, cars_train_dummy$bcpreco)
 ```
   
-# Tree regression
-
-```{r include=FALSE}
-cars_train2 <- read_csv("../data/cars_train_clean.csv", show_col_types = FALSE)
-
-#Removing variables with excess categories
-cars_train2 <- subset(cars_train2, 
-                     select = -c(cidade_vendedor, modelo, versao))
-```
+# Tree regression  
 
 Train tree
 ```{r}
 tree <- rpart(preco ~ .,
-                 data= cars_train2,
+                 data= train,
                  xval=5,
                  control = rpart.control(cp = 0, 
                                          minsplit = 2,
                                          maxdepth = 30))
 ```
 
-Save the forecast
+Save the forecast train and test
 ```{r}
-cars_train2['predict'] = predict(tree, cars_train2)
-
+train_tree_predict <- predict(tree, train)
+test_tree_predict <- predict(tree, test)
 # investigate the forecast
-cars_train2$predict %>% tail
+train_tree_predict %>% tail
+test_tree_predict %>% tail
 ```
 
-creating residue variable
+creating residue variable for train and test
 ```{r}
-cars_train2['residue'] = cars_train2$preco - cars_train2$predict
+train_tree_residue <- train$preco - train_tree_predict
+test_tree_residue <- test$preco - test_tree_predict
 
 #Investigate residue
 
-cars_train2$residue %>% tail
+train_tree_residue %>% tail
+test_tree_residue %>%  tail
 ```
 
 Evaluate the tree
 ```{r}
-metricas2(cars_train2$predict, cars_train2$preco)
+metricas2(train_tree_predict, train$preco)
+metricas2(test_tree_predict, test$preco)
 ```
+Graphical analysis
 ```{r}
-scatterplot_color(cars_train2, "predict", "preco", "residue")
-```
-```{r}
-#analise_grafica(cars_train2, "anunciante", "preco", "predict", "residue")
+
+#create a dataframe to plot the graph
+
+#train
+train_grap <- data.frame(
+  predict = train_tree_predict,
+  preco = train$preco,
+  residue = train_tree_residue
+)
+
+scatterplot_color(train_grap, "predict", "preco", "residue")
+
+#test
+test_grap <- data.frame(
+  predict = test_tree_predict,
+  preco = test$preco,
+  residue = test_tree_residue
+)
+
+scatterplot_color(test_grap, "predict", "preco", "residue")
+
 ```
 
 Observe the complexity of tree paths (cp)
@@ -162,65 +194,109 @@ cp_min
 Tuning tree  
 ```{r}
 tree_tune <- rpart::rpart(preco ~ .,
-                              data=cars_train2,
+                              data=train,
                               xval=0,
                               control = rpart.control(cp = cp_min, 
                                                       maxdepth = 30))
 ```
 
-Predicted values
+Predicted values of tree tune
 ```{r}
-cars_train2['p_tune'] = predict(tree_tune, cars_train2)
-#cars_train2$p_tune %>% tail # investigar a previsão
-cars_train2['r_tune'] = cars_train2$preco - cars_train2$p_tune
+train_tree_tune_predict <- predict(tree_tune, train)
+test_tree_tune_predict <- predict(tree_tune, test)
+
+# investigate the forecast
+train_tree_tune_predict %>% tail
+test_tree_tune_predict %>% tail
+```
+creating residue variable for train and test of tree tune
+```{r}
+train_tree_tune_residue <- train$preco - train_tree_tune_predict
+test_tree_tune_residue <- test$preco - test_tree_tune_predict
 ```
 
 Evaluate the tuned tree
 ```{r}
-metricas2(cars_train2$p_tune, cars_train2$preco)
+metricas2(train_tree_tune_predict, train$preco)
+metricas2(test_tree_tune_predict, test$preco)
+```
+Graphical analysis
+```{r}
+
+#create a dataframe to plot the graph
+
+#train
+train_tune_grap <- data.frame(
+  predict = train_tree_tune_predict,
+  preco = train$preco,
+  residue = train_tree_tune_residue
+)
+
+scatterplot_color(train_tune_grap, "predict", "preco", "residue")
+
+#test
+test_tune_grap <- data.frame(
+  predict = test_tree_tune_predict,
+  preco = test$preco,
+  residue = test_tree_tune_residue
+)
+
+scatterplot_color(test_tune_grap, "predict", "preco", "residue")
+
 ```
 
-Graphic analysis
-```{r}
-scatterplot_color(cars_train2, "p_tune", "preco", "r_tune")
-#analise_grafica(cars_train2, "hodometro", "preco", "p_tune", "r_tune")
-```
 ## Random Forest  
-
-Dataset separation  
-```{r}
-set.seed(123)
-separation <- sample(c("train", "test"),
-                     size = nrow(cars_train),
-                     replace = TRUE,
-                     prob = c(0.8, 0.2))
-```
-
-Generating training and testing base
-```{r}
-train <- cars_train[separation == "train",]
-nrow(train)
-test <- cars_train[separation == "test",]
-nrow(test)
-```
 
 ```{r}
 set.seed(123)
 rf <- randomForest::randomForest(
   preco ~ .,
   data = train,
-  ntree = 200
+  ntree = 500,
+  importance = TRUE
 )
 ```
   
 Evaluating tree
 ```{r}
+#creating variables with predicted values
 pRF_train <- predict(rf, train)
 pRF_test  <- predict(rf, test)
 
+#creating variables from the residuals
+rf_residue_train <- train$preco - pRF_train
+rf_residue_test <- test$preco - pRF_test
+
+#Evaluating the model
 metricas2(pRF_train, train$preco)
 metricas2(pRF_test, test$preco)
 ```
-  
+
+Graphical analysis
+```{r}
+#train
+rf_train <- data.frame(
+  predict = pRF_train,
+  preco = train$preco,
+  residue = rf_residue_train
+)
+
+scatterplot_color(rf_train, "predict", "preco", "residue")
+
+
+#test
+rf_test <- data.frame(
+  predict = pRF_test,
+  preco = test$preco,
+  residue = rf_residue_test
+)
+
+scatterplot_color(rf_test, "predict", "preco", "residue")
+
+```
+
+
+
+
 **The selected model will be Random forest, as it presented the best RMSE and R2 evaluation metrics.** 
  
