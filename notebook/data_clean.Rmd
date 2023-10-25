@@ -131,11 +131,11 @@ cars_train$anunciante[cars_train$anunciante == "Loja"] <- "Concessionária"
 
 
 #num_portas, blindado, entrega_delivery, troca, dono_aceita_troca: These are variables that present a suspicious distribution of the data. Before doing the modeling I will investigate which of them should or should not be excluded.
-pie(table(cars_train$num_portas), main = "tipo", col= c("#003154","#dd4a37"))
-pie(table(cars_train$blindado), main = "tipo", col= c("#003154","#dd4a37"))
-pie(table(cars_train$entrega_delivery), main = "tipo", col= c("#003154","#dd4a37"))
-pie(table(cars_train$troca), main = "tipo", col= c("#003154","#dd4a37"))
-pie(table(cars_train$dono_aceita_troca), main = "tipo", col= c("#003154","#dd4a37"))
+pie(table(cars_train$num_portas), main = "num_portas", col= c("#003154","#dd4a37"))
+pie(table(cars_train$blindado), main = "blindado", col= c("#003154","#dd4a37"))
+pie(table(cars_train$entrega_delivery), main = "entrega_delivery", col= c("#003154","#dd4a37"))
+pie(table(cars_train$troca), main = "troca", col= c("#003154","#dd4a37"))
+pie(table(cars_train$dono_aceita_troca), main = "dono_aceita_troca", col= c("#003154","#dd4a37"))
 
 ```
 

@@ -2,17 +2,19 @@
 title: "Modeling"
 author: "Karine Almeida"
 date: "2023-10-12"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
-#Modeling
+# Modeling
 
 - In this notebook we will apply machine learning models, with the aim of predicting the price of used cars based on the relationship between the price and a set of resources.  
 - Since we are dealing with a continuous variable, we will apply regression, which is part of supervised machine learning models.  
 - We will apply 4 models and, through evaluation metrics, identify the one that performs best. This model will be used to obtain the price prediction from the *(cars_test)* dataset.  
 
 
-## Viewing the database   
+Viewing the database   
 ```{r echo=TRUE, warning=FALSE}
 cars_train <- read_csv("../data/cars_train_clean1.csv", show_col_types = FALSE)
 glimpse(cars_train)
@@ -26,7 +28,6 @@ Removing variables near zero covariates and variables with excess categories (hi
 ```{r}
 cars_train <- subset(cars_train, 
                      select = -c(num_portas, blindado, cidade_vendedor, modelo, versao))
-
 ```
 
 Dataset separation  
@@ -45,26 +46,8 @@ nrow(train)
 test <- cars_train[separation == "test",]
 nrow(test)
 ```
-
-
-Transforming variables into factors
-```{r}
-cars_train[,c("marca", "cor", "cambio", "tipo", "ano_de_fabricacao",
-              "ano_modelo","veiculo_único_dono",
-              "ipva_pago", "veiculo_licenciado",
-              "tipo_vendedor","estado_vendedor", 
-              "anunciante")]= 
-  lapply(cars_train[,c("marca", "cor", "cambio", "tipo", "ano_de_fabricacao",
-              "ano_modelo","veiculo_único_dono",
-              "ipva_pago", "veiculo_licenciado",
-              "tipo_vendedor","estado_vendedor", 
-              "anunciante")], as.factor)
-
-summary(cars_train)
-```
-
-Dummize qualitative variables before running the model 
-```{r}
+Dummize qualitative variables before running the model OLS
+```{r include=FALSE}
 cars_train_dummy <- dummy_columns(.data = cars_train,
                              select_columns = 
                                c("marca","cor","cambio",
@@ -80,41 +63,123 @@ cars_train_dummy <- dummy_columns(.data = cars_train,
 summary(cars_train_dummy)
 ```
 
-# Linear Models
-Multiple Linear Regression
+## Linear Models
+
+### Multiple Linear Regression
 ```{r}
+#Creating the model
 modelo_cars_train <- lm(preco~., cars_train_dummy)
+
+#Model result
 summary(modelo_cars_train)
 ```
-  
-Evaluating model
+```{r include=FALSE}
+#Stepwise
+# -- Applying stepwise to identify the final model that only has variables whose beta is significant to explain the price, considering the 5% significance level and the linear functional form adopted in this model.
+tempo_ini <- Sys.time()
+
+step_cars_train <- step(modelo_cars_train, k=3.841459)
+
+tempo_fim <- Sys.time()
+tempo_fim - tempo_ini
+```
 ```{r}
-predito_OLS <- predict(modelo_cars_train, cars_train_dummy)
+#Stepwise result
+summary(step_cars_train)
+```
+```{r}
+#Evaluating model
+predito_OLS <- predict(step_cars_train, cars_train_dummy)
 metricas2(predito_OLS, cars_train_dummy$preco)
 ```
-  
-Multiple Nonlinear Regression (Box-Cox Transformation)
 ```{r}
+#Normality adherence test
+sf.test2(step_cars_train$residuals)
+```
+```{r}
+#Heteroscedasticity test (Breusch-Pagan)
+ols_test_breusch_pagan(step_cars_train)
+```
+**NOTE:**Although the model gave a satisfactory R2, the SF test indicated non-adherence to normality. Therefore, using this model to make inferences is not very safe.
+Seeking to adjust the adherence of residuals to normality, we will normalize the dependent variable "price" through Box-Cox transformation.  
+    
+### Multiple Nonlinear Regression (Box-Cox Transformation)
+
+Normalizing dependent variable
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+#Calculating lambda
 lambda_BC <- powerTransform(cars_train_dummy$preco)
 lambda_BC
 
-#Inserindo o lambda de Box-Cox na base de dados para a estimação de um novo modelo
+#Inserting the Box-Cox lambda into the database to estimate a new model
 cars_train_dummy$bcpreco <- (((cars_train_dummy$preco ^ lambda_BC$lambda) - 1) / 
                                    lambda_BC$lambda)
 
-#Estimando um novo modelo múltiplo com variável dependente transformada por Box-Cox 
+#Estimating a new multiple model with Box-Cox transformed dependent variable
 modelo_cars_train_bc <- lm(formula = bcpreco ~ . -preco, na.rm = T,
                         data = cars_train_dummy)
 summary(modelo_cars_train_bc)
 ```
-    
-Evaluating model  
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#Stepwise
+tempo_ini <- Sys.time()
+
+step_cars_train_bc <- step(modelo_cars_train_bc, k=3.841459)
+
+tempo_fim <- Sys.time()
+tempo_fim - tempo_ini
+```
 ```{r}
-predito_bc <- predict(modelo_cars_train_bc, cars_train_dummy)
+#Stepwise result
+summary(step_cars_train_bc)
+```
+```{r}
+#Evaluating model
+predito_bc <- predict(step_cars_train_bc, cars_train_dummy)
 metricas2(predito_bc, cars_train_dummy$bcpreco)
 ```
-  
-# Tree regression  
+```{r}
+#Normality adherence test
+sf.test2(step_cars_train_bc$residuals)
+```
+```{r}
+#Heteroscedasticity test (Breusch-Pagan)
+ols_test_breusch_pagan(step_cars_train_bc)
+```
+Although the data still does not show adherence to normality, there has been a substantial improvement. See the graph below.
+
+Graphical analysis of residuals distribution
+```{r}
+cars_train %>% 
+  mutate(residuos = step_cars_train_bc$residuals) %>% 
+  ggplot(aes(x=residuos)) +
+  geom_histogram(aes(y=..density..),
+                 color="white",
+                 fill="440154FF",
+                 bins=30,
+                 alpha=0.6) +
+  stat_function(fun = dnorm,
+                args = list(mean = mean(step_cars_train_bc$residuals),
+                            sd = sd(step_cars_train_bc$residuals)),
+                size = 2, color = "grey30") +
+  scale_color_manual(values = "grey50") +
+  labs(x = "Resíduos",
+       y = "Frequência") +
+  theme_bw()
+```
+
+Which variables have the greatest contribution to explaining the price?
+```{r message=FALSE, warning=FALSE}
+plot_summs(step_cars_train_bc, scale=TRUE, colors= "440154FF")
+```
+```{r eval=FALSE, include=FALSE}
+### Comparing OLS Models
+export_summs(step_cars_train, step_cars_train_bc,
+             model.names = c("Linear Model", "Box-Cox Model"),
+             scale = F, digits=4)
+```
+
+### Tree regression  
 
 Train tree
 ```{r}
@@ -177,7 +242,7 @@ scatterplot_color(test_grap, "predict", "preco", "residue")
 ```
 
 Observe the complexity of tree paths (cp)
-```{r}
+```{r include=FALSE}
 tab_cp <- rpart::printcp(tree)
 ```
 
@@ -185,6 +250,7 @@ Here is a graphical visualization of CP vs error in cross validation
 ```{r}
 rpart::plotcp(tree)
 ```
+
 Identifying the best CP in cross-validation   
 ```{r}
 tab_cp[which.min(tab_cp[,'xerror']),]
@@ -246,7 +312,6 @@ scatterplot_color(test_tune_grap, "predict", "preco", "residue")
 ```
 
 ## Random Forest  
-
 ```{r}
 set.seed(123)
 rf <- randomForest::randomForest(
@@ -295,8 +360,90 @@ scatterplot_color(rf_test, "predict", "preco", "residue")
 
 ```
 
+## XGBoosting
+
+Defining control parameters
+```{r}
+control <- caret::trainControl(
+  method = "cv",
+  number = 5,
+  summaryFunction = defaultSummary,
+  classProbs = FALSE
+)
+```
+
+Defining the search grid
+```{r}
+search_grid <- expand.grid(
+  nrounds = c(50, 100),
+  max_depth = c(6, 12),
+  gamma = c(0),
+  eta = c(0,05, 0.1, 0.4),
+  colsample_bytree = c(0.8, 1), 
+  min_child_weight = c(30),
+  subsample = c(0.8, 1)
+)
+```
+
+Creating the tree
+```{r}
+tempo_ini <- Sys.time()
+
+set.seed(1012)
+xgb_model <- caret::train(
+  preco ~., 
+  data = train, 
+  method = "xgbTree",
+  trControl = control,
+  tuneGrid = search_grid,
+  verbosity = 0) 
+
+xgb_model
+
+tempo_fim <- Sys.time()
+tempo_fim - tempo_ini
+```
+```{r}
+variaveis <- tree_tune$variable.importance %>% sort %>% names
+```
+Model output
+```{r}
+xgb_train_pred <- predict(xgb_model, train)
+xgb_test_pred <- predict(xgb_model, test)
+
+#creating variables from the residuals
+xgb_residue_train <- train$preco - xgb_train_pred
+xgb_residue_test <- test$preco - xgb_test_pred
+
+#Evaluating the model
+print("Train base metrics")
+metricas2(xgb_train_pred, train$preco)
+print("Test base metrics")
+metricas2(xgb_test_pred, test$preco)
+
+```
+Graphical analysis
+```{r}
+#train
+xgb_train <- data.frame(
+  predict = xgb_train_pred,
+  preco = train$preco,
+  residue = xgb_residue_train
+)
+
+scatterplot_color(xgb_train, "predict", "preco", "residue")
 
 
+#test
+xgb_test <- data.frame(
+  predict = xgb_test_pred,
+  preco = test$preco,
+  residue = xgb_residue_test
+)
 
-**The selected model will be Random forest, as it presented the best RMSE and R2 evaluation metrics.** 
+scatterplot_color(xgb_test, "predict", "preco", "residue")
+
+```
+
+**The selected model will be XGBoosting, as it presented the best RMSE and R2 evaluation metrics.** 
  
